@@ -46,9 +46,9 @@ def load_dataset(dataset):
 
     :return: images and captions embeddings, labels
     """
-    images = read_hdf5("../../autodl-fs/image_emb_{}.h5".format(dataset.upper()), 'image_emb', normalize=True)
-    captions = read_hdf5("../../autodl-fs/caption_emb_{}.h5".format(dataset.upper()), 'caption_emb', normalize=True)
-    labels = np.array(get_labels(read_json("../../autodl-fs/processed_data_{}.json".format(dataset.upper())), suppress_console_info=True))
+    images = read_hdf5("./data/image_emb_{}.h5".format(dataset.upper()), 'image_emb', normalize=True)
+    captions = read_hdf5("./data/caption_emb_{}.h5".format(dataset.upper()), 'caption_emb', normalize=True)
+    labels = np.array(get_labels(read_json("./data/processed_data_{}.json".format(dataset.upper())), suppress_console_info=True))
     
     return images, captions, labels
 
