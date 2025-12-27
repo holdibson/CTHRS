@@ -25,9 +25,6 @@ class ImagesDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
 
         img = self.load_single_image(self.image_file_names[idx])
-        # print('imgmode',img.mode)
-        # if(img.mode=="RGBA"):
-        #     print(self.image_file_names[idx])
         return idx, self.to_tensor(img)
 
     def __len__(self):
@@ -50,18 +47,16 @@ def get_embeddings(model, dataloader, device):
     :param device: CUDA device
     :return:
     """
-    with torch.no_grad():  # no need to call Tensor.backward(), saves memory
-        model = model.to(device)  # to gpu (if presented)
+    with torch.no_grad():  
+        model = model.to(device)  
 
         batch_outputs = []
-        # fc_layer = torch.nn.Linear(512, 768).to(device)
         for idx, x in tqdm(dataloader, desc='Getting Embeddings (batches): '):
             x = x.to(device)
             batch_outputs.append(model(x))
 
-        output = torch.vstack(batch_outputs)  # (batches, batch_size, output_dim) -> (batches * batch_size, output_dim)
-
-        embeddings = output.squeeze().cpu().numpy()  # return to cpu (or do nothing), convert to numpy
+        output = torch.vstack(batch_outputs)  
+        embeddings = output.squeeze().cpu().numpy()  
         print('Embeddings shape:', embeddings.shape)
         return embeddings
 
@@ -84,13 +79,8 @@ if __name__ == '__main__':
     print("CREATE IMAGE EMBEDDINGS")
     random.seed(cfg.seed)
     np.random.seed(cfg.seed)
-
-    # device
     device = torch.device(cfg.cuda_device if torch.cuda.is_available() else "cpu")
-
-    # read captions from JSON file
     data = read_json(cfg.dataset_json_file)
-
     file_names = get_image_file_names(data)
     file_names_permutated, permutations = shuffle_file_names_list(file_names)
     images_dataset = ImagesDataset(file_names_permutated, cfg.dataset_image_folder_path)

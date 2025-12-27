@@ -33,17 +33,6 @@ class DataHandler:
         """
         idx_tr, idx_q, idx_db = get_split_idxs(len(images))
         idx_tr_cap, idx_q_cap, idx_db_cap = get_caption_idxs(idx_tr, idx_q, idx_db)
-#         print("idx_q",idx_q[318])
-#         index = [1350, 1355, 1347, 1371, 1390 ,1398 ,1348, 1441 ,1310 ,1442 ,1346, 1343, 1420 ,1424,
-#  1313 ,1412 ,1312, 1374 ,2400 ,1389]
-#         selected_captions = [idx_db[i] for i in index]  # ✅ 列表推导式
-#         print("idx_db",selected_captions)
-
-#         print("idx_cap_q",idx_q_cap[1593])#16633
-#         print("idx_cap_db",idx_db_cap[1593])
-#         index = [6994, 6863, 6950, 6859, 6743, 6887, 6871, 6719, 6736, 7221, 7215, 6754, 6931, 6867, 6554, 6779, 7104, 6733, 7083, 6986]
-#         selected_captions = [idx_db_cap[i] for i in index]  # ✅ 列表推导式
-#         print("idx_db",selected_captions)
         
         train = images[idx_tr], captions[idx_tr_cap], labels[idx_tr], (idx_tr, idx_tr_cap)
         query = images[idx_q], captions[idx_q_cap], labels[idx_q], (idx_q, idx_q_cap)
@@ -57,11 +46,9 @@ def load_dataset(dataset):
 
     :return: images and captions embeddings, labels
     """
-    images = read_hdf5("./data/image_emb_{}.h5".format(dataset.upper()), 'image_emb', normalize=True)
-    # print(images.shape) 10921*512
-    captions = read_hdf5("./data/caption_emb_{}.h5".format(dataset.upper()), 'caption_emb', normalize=True)
-    # print(captions.shape) 54605*768
-    labels = np.array(get_labels(read_json("./data/processed_data_{}.json".format(dataset.upper())), suppress_console_info=True))
+    images = read_hdf5("../../autodl-fs/image_emb_{}.h5".format(dataset.upper()), 'image_emb', normalize=True)
+    captions = read_hdf5("../../autodl-fs/caption_emb_{}.h5".format(dataset.upper()), 'caption_emb', normalize=True)
+    labels = np.array(get_labels(read_json("../../autodl-fs/processed_data_{}.json".format(dataset.upper())), suppress_console_info=True))
     
     return images, captions, labels
 
@@ -77,10 +64,6 @@ def get_split_idxs(arr_len):
     idx_all = list(range(arr_len))
     idx_train, idx_eval = split_indexes(idx_all, 0.5)
     idx_query, idx_db = split_indexes(idx_eval, 0.2)
-    # print(idx_train)
-    # idx_tr 5460 50%
-    # idx_q 1092  10%
-    # idx_db 4369 40%
     return idx_train, idx_query, idx_db
 
 
@@ -129,7 +112,7 @@ def get_caption_idxs_from_img_idxs(img_idxs):
     """
     caption_idxs = []
     for idx in img_idxs:
-        for i in range(5):  # each image has 5 captions
+        for i in range(5):  
             caption_idxs.append(idx * 5 + i)
     return caption_idxs
 
@@ -147,19 +130,11 @@ def get_dataloaders(data_handler, ds_train, ds_query, ds_db,dataset,batch_size):
     """
     data_handler = data_handler()
 
-    # data tuples: (images, captions, labels, (idxs, idxs_cap))
-    # or (images, captions, labels, (idxs, idxs_cap), augmented_captions)
-    # or (images, captions, labels, (idxs, idxs_cap), augmented_captions, augmented_images)
     train_tuple, query_tuple, db_tuple = data_handler.load_train_query_db_data(dataset)
-    # print(len(train_tuple),len(query_tuple),len(db_tuple))
-    # train dataloader
     dataset_triplets = ds_train(*train_tuple)
     dataloader_train = DataLoader(dataset_triplets, batch_size=batch_size, shuffle=True)
-    # query dataloader
     dataset_q = ds_query(*query_tuple)
     dataloader_q = DataLoader(dataset_q, batch_size=batch_size)
-
-    # database dataloader
     dataset_db = ds_db(*db_tuple)
     dataloader_db = DataLoader(dataset_db, batch_size=batch_size)
 

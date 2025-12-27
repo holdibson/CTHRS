@@ -45,13 +45,6 @@ class DatasetDuplet1(AbstractDataset):
         super().__init__(images, captions, labels, idxs)
 
         caption_idxs = select_idxs(len(self.captions), 1, 5)[0]
-#         if caption_idxs and len(caption_idxs) >1200:  # 确保 caption_idxs 非空且长度 > 318
-#             index = [1398, 1372, 1390, 1371 ,1348 ,1377 ,1374, 1343, 1347 ,1444, 1443, 1350, 1386, 1373,
-#  1310 ,1355, 1420 ,1346, 1416, 1397]
-#             selected_captions = [caption_idxs[i] for i in index]  
-#             print("idx_",selected_captions)
-#         else:
-#             print("Index 318 is out of bounds!")
         self.captions = self.captions[caption_idxs]
 
     def __getitem__(self, index):

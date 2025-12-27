@@ -244,22 +244,15 @@ def reshuffle_embeddings(embeddings, permutations):
     return result
 
 def save_checkpoints(self):
-    if self.task ==0:
-        file_name = self.dataset + '_fusion.pth'
-        ckp_path = osp.join(self.model_dir, 'real', file_name)
-        obj = {
-        'FusionTransformer': self.FuseTrans.state_dict()
-        }
-    if self.task ==1:
-        file_name = self.dataset + '_hash_' + str(self.nbits)+".pth"
-        ckp_path = osp.join(self.model_dir, 'hash', file_name)
-        obj = {
-        'FusionTransformer': self.FuseTrans.state_dict(),
-        'ImageMlp': self.ImageMlp.state_dict(),
-        'TextMlp': self.TextMlp.state_dict()
-        }
+    file_name = self.dataset + '_hash_' + str(self.bits)+".pth"
+    ckp_path = osp.join(self.model_dir, 'hash', file_name)
+    obj = {
+    'FusionTransformer': self.FuseTrans.state_dict(),
+    'ImageMlp': self.ImageMlp.state_dict(),
+    'TextMlp': self.TextMlp.state_dict()
+    }
     torch.save(obj, ckp_path)
-    print('**********Save the {0} model successfully.**********'.format("real" if self.task==0 else "hash"))
+    print('**********Save the model successfully.**********')
 
 
 def load_checkpoints(self, file_name):
@@ -270,12 +263,10 @@ def load_checkpoints(self, file_name):
     except IOError:
         print('********** Fail to load checkpoint %s!*********' % ckp_path)
         raise IOError
-    if self.task==2:
-        self.FuseTrans.load_state_dict(obj['FusionTransformer'])
-    elif self.task==3:
-        self.FuseTrans.load_state_dict(obj['FusionTransformer'])
-        self.ImageMlp.load_state_dict(obj['ImageMlp'])
-        self.TextMlp.load_state_dict(obj['TextMlp'])
+    self.FuseTrans.load_state_dict(obj['FusionTransformer'])
+    self.ImageMlp.load_state_dict(obj['ImageMlp'])
+    self.TextMlp.load_state_dict(obj['TextMlp'])
+    
 def calculate_hamming(B1, B2):
     """
     :param B1:  vector [n]
@@ -285,12 +276,14 @@ def calculate_hamming(B1, B2):
     leng = B2.shape[1] # max inner product value
     distH = 0.5 * (leng - np.dot(B1, B2.transpose()))
     return distH
+
 def calc_hamming_dist(B1, B2):
     q = B2.shape[1]
     if len(B1.shape) < 2:
         B1 = B1.unsqueeze(0)
     distH = 0.5 * (q - B1.mm(B2.t()))
     return distH
+
 def calculate_top_map(qu_B, re_B, qu_L, re_L, topk):
     """
     :param qu_B: {-1,+1}^{mxq} query bits
@@ -319,95 +312,6 @@ def calculate_top_map(qu_B, re_B, qu_L, re_L, topk):
     topkmap = topkmap / num_query
     return topkmap        
 
-
-def pr_curve(qB, rB, query_label, retrieval_label, tqdm_label=''):
-    """
-    Calculate PR curve, each point - hamming radius
-
-    :param qB: query hash code
-    :param rB: retrieval hash codes
-    :param query_label: query label
-    :param retrieval_label: retrieval label
-    :param tqdm_label: label for tqdm's output
-    :return:
-    """
-    if tqdm_label != '':
-        tqdm_label = 'PR-curve ' + tqdm_label
-
-    num_query = qB.shape[0]  # length of query (each sample from query compared to retrieval samples)
-    num_bit = qB.shape[1]  # length of hash code
-    P = torch.zeros(num_query, num_bit + 1)  # precisions (for each sample)
-    R = torch.zeros(num_query, num_bit + 1)  # recalls (for each sample)
-    query_label = torch.Tensor(query_label)
-    retrieval_label = torch.Tensor(retrieval_label)
-    qB = torch.Tensor(qB)
-    rB = torch.Tensor(rB)
-    # for each sample from query calculate precision and recall
-    for i in tqdm(range(num_query), desc=tqdm_label):
-        # gnd[j] == 1 if same class, otherwise 0, ground truth
-        gnd = (query_label[i].unsqueeze(0).mm(retrieval_label.t()) > 0).float().squeeze()
-        # tsum (TP + FN): total number of samples of the same class
-        tsum = torch.sum(gnd)
-        if tsum == 0:
-            continue
-        hamm = calc_hamming_dist(qB[i, :], rB)  # hamming distances from qB[i, :] (current sample) to retrieval samples
-        # tmp[k,j] == 1 if hamming distance to retrieval sample j is less or equal to k (distance), 0 otherwise
-        tmp = (hamm <= torch.arange(0, num_bit + 1).reshape(-1, 1).float().to(hamm.device)).float()
-        # total (TP + FP): total[k] is count of distances less or equal to k (from query sample to retrieval samples)
-        total = tmp.sum(dim=-1)
-        total = total + (total == 0).float() * 0.0001  # replace zeros with 0.1 to avoid division by zero
-        # select only same class samples from tmp (ground truth masking, only rows where gnd == 1 proceed further)
-        t = gnd * tmp
-        # count (TP): number of true (correctly selected) samples of the same class for any given distance k
-        count = t.sum(dim=-1)
-        p = count / total  # TP / (TP + FP)
-        r = count / tsum  # TP / (TP + FN)
-        P[i] = p
-        R[i] = r
-    # mask to calculate P mean value (among all query samples)
-    # mask = (P > 0).float().sum(dim=0)
-    # mask = mask + (mask == 0).float() * 0.001
-    # P = P.sum(dim=0) / mask
-    # mask to calculate R mean value (among all query samples)
-    # mask = (R > 0).float().sum(dim=0)
-    # mask = mask + (mask == 0).float() * 0.001
-    # R = R.sum(dim=0) / mask
-    P = P.mean(dim=0)
-    R = R.mean(dim=0)
-    return P.cpu().numpy().tolist(), R.cpu().numpy().tolist()
-
-def calc_hamming_dist(B1, B2):
-    q = B2.shape[1]
-    if len(B1.shape) < 2:
-        B1 = B1.unsqueeze(0)
-    distH = 0.5 * (q - B1.mm(B2.t()))
-    return distH
-
-def pr_Curve(qB, rB, query_label, retrieval_label, K):
-    num_query = query_label.shape[0]
-    p = [0] * len(K)
-    r = [0] * len(K)
-    query_label = torch.Tensor(query_label)
-    retrieval_label = torch.Tensor(retrieval_label)
-    qB = torch.Tensor(qB)
-    rB = torch.Tensor(rB)
-    for iter in range(num_query):
-        gnd = (query_label[iter].unsqueeze(0).mm(retrieval_label.t()) > 0).float().squeeze()
-        tsum = torch.sum(gnd)
-        if tsum == 0:
-            continue
-        hamm = calc_hamming_dist(qB[iter, :], rB).squeeze()
-        hamm = torch.Tensor(hamm)
-        for i in range(len(K)):
-            total = min(K[i], retrieval_label.shape[0])
-            ind = torch.sort(hamm).indices[:int(total)]
-            gnd_ = gnd[ind]
-            p[i] += gnd_.sum() / total
-            r[i] += gnd_.sum() / tsum
-    p = torch.Tensor(p) / num_query
-    r = torch.Tensor(r) / num_query
-    return p, r 
-
 def p_topK(qB, rB, query_label, retrieval_label, K ):
     num_query = query_label.shape[0]
     p = [0] * len(K)
@@ -429,6 +333,7 @@ def p_topK(qB, rB, query_label, retrieval_label, K ):
             p[i] += gnd_.sum() / total
     p = torch.Tensor(p) / num_query
     return p
+
 def logger():
     """
     Instantiate logger
